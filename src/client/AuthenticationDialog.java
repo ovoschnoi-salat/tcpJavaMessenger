@@ -1,7 +1,15 @@
 package client;
 
-import javax.swing.*;
-import java.awt.*;
+import javax.swing.JDialog;
+import javax.swing.JTextField;
+import javax.swing.JPasswordField;
+import javax.swing.JComboBox;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.GroupLayout;
+import javax.swing.SwingConstants;
+import java.awt.Frame;
 import java.awt.event.ActionEvent;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -10,19 +18,56 @@ import java.io.OutputStreamWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Class that show authentication dialog window.
+ */
 public class AuthenticationDialog extends JDialog {
+    /**
+     * Username text field.
+     */
     private final JTextField usernameField = new JTextField(16);
+    /**
+     * Password text field.
+     */
     private final JPasswordField passwordField = new JPasswordField(16);
+    /**
+     * Authentication options names.
+     */
     private final String[] items = {"Log in", "Sign up"};
+    /**
+     * Authentication options combo box.
+     */
     private final JComboBox<String> comboBox = new JComboBox<>(items);
+    /**
+     * Authentication button.
+     */
     private final JButton authButton = new JButton(items[0]);
+    /**
+     * Server output stream.
+     */
     private OutputStreamWriter out = null;
+    /**
+     * Server input stream.
+     */
     private BufferedReader in = null;
+    /**
+     * Selected authentication method.
+     */
     private int selectedMethod = 0;
+    /**
+     * Server connection socket.
+     */
     private final Socket newSocket;
 
+    /**
+     * Authentication window Initializer.
+     *
+     * @param socket server socket
+     */
     public AuthenticationDialog(Socket socket) {
         super((Frame) null, "Authentication", true);
+        if (socket == null || socket.isClosed())
+            throw new IllegalArgumentException("Illegal arguments passed");
         // setting server socket
         newSocket = socket;
         // setting text fields for username and password input
@@ -32,6 +77,7 @@ public class AuthenticationDialog extends JDialog {
         comboBox.addActionListener(this::authMethodChangingActionPerformed);
         // setting authentication button action
         authButton.addActionListener(this::authActionPerformed);
+        getRootPane().setDefaultButton(authButton);
         // setting exit button action for server authentication dialog
         JButton cancelButton = new JButton("Cancel");
         cancelButton.addActionListener(this::exitActionPerformed);
@@ -77,19 +123,32 @@ public class AuthenticationDialog extends JDialog {
         setLocationRelativeTo(null);
         try {
             out = new OutputStreamWriter(newSocket.getOutputStream(), StandardCharsets.UTF_8);
-            in = new BufferedReader(new InputStreamReader(newSocket.getInputStream()));
+            in = new BufferedReader(new InputStreamReader(newSocket.getInputStream(), StandardCharsets.UTF_8));
             setVisible(true);
         } catch (IOException e) {
             error("Error occurred creating connection");
         }
     }
 
+    /**
+     * Called when authentication method changed.
+     * Changes authentication method.
+     *
+     * @param e ignored
+     */
     public void authMethodChangingActionPerformed(ActionEvent e) {
         selectedMethod = comboBox.getSelectedIndex();
         String item = (String) comboBox.getSelectedItem();
         authButton.setText(item);
     }
 
+    /**
+     * Called when authenticate button pressed.
+     * Sends authentication request to server.
+     * Shows main window on success.
+     *
+     * @param e ignored
+     */
     public void authActionPerformed(ActionEvent e) {
         if (in == null || out == null) error("Something went wrong");
         try {
@@ -117,9 +176,8 @@ public class AuthenticationDialog extends JDialog {
                 String buffer = in.readLine();
                 if (buffer != null) {
                     if (buffer.equals("Accepted")) {
-                        buffer = in.readLine();
                         dispose();
-                        new Client(newSocket, username, buffer);
+                        new Client(newSocket, username, in);
                     } else {
                         JOptionPane.showMessageDialog(this, buffer,
                                 "Access denied",
@@ -138,10 +196,23 @@ public class AuthenticationDialog extends JDialog {
         }
     }
 
+    /**
+     * Called when cancel button pressed.
+     * Closes window.
+     *
+     * @param e ignored
+     */
     public void exitActionPerformed(ActionEvent e) {
         error("Authentication canceled");
     }
 
+    /**
+     * Called if error occurred.
+     * Closes window and shows server connection dialog.
+     * Shows notification with cause before closing.
+     *
+     * @param msg cause message
+     */
     private void error(String msg) {
         JOptionPane.showMessageDialog(this,
                 msg,

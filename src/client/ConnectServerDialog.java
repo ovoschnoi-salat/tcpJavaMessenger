@@ -1,17 +1,41 @@
 package client;
 
-import javax.swing.*;
-import java.awt.*;
+import javax.swing.JDialog;
+import javax.swing.JTextField;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.GroupLayout;
+import javax.swing.SwingConstants;
+import java.awt.Frame;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.net.Socket;
 
+/**
+ * Class that show server connection dialog window.
+ */
 public class ConnectServerDialog extends JDialog {
-    public static String defaultHost;
-    public static String defaultPort;
+    /**
+     * String with default server host name.
+     */
+    public static String defaultHost = "127.0.0.1";
+    /**
+     * String with default server port number.
+     */
+    public static String defaultPort = "31337";
+    /**
+     * Text field for server host name.
+     */
     private final JTextField hostField;
+    /**
+     * Text field for server port number.
+     */
     private final JTextField portField;
 
+    /**
+     * Initializes server connection dialog window.
+     */
     public ConnectServerDialog() {
         super((Frame) null, "Server connection", true);
         // setting text fields for host and port input
@@ -22,6 +46,7 @@ public class ConnectServerDialog extends JDialog {
         // setting connection button action for server connection dialog
         JButton connectButton = new JButton("Connect");
         connectButton.addActionListener(this::connectActionPerformed);
+        getRootPane().setDefaultButton(connectButton);
         //setting layout for server connection dialog
         GroupLayout layout = new GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -56,9 +81,16 @@ public class ConnectServerDialog extends JDialog {
         setResizable(false);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);
+        // showing window
         setVisible(true);
     }
 
+    /**
+     * Called when connect button pressed.
+     * Tries to connect to server and show authentication dialog window.
+     *
+     * @param e ignored
+     */
     public void connectActionPerformed(ActionEvent e) {
         try {
             String host = hostField.getText().trim();

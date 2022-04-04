@@ -5,7 +5,16 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 
+/**
+ * Class that starts server.
+ */
 public class Main {
+    /**
+     * Starts server at optionally specified port.
+     * Stops server if "stop" message read from standard input stream.
+     *
+     * @param args server's port
+     */
     public static void main(String[] args) {
         try {
             int port = Server.defaultServerPort;

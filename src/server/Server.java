@@ -1,25 +1,73 @@
 package server;
 
 import java.io.*;
-import java.net.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Server's main class
+ */
 public class Server {
-    private final ServerSocket serverSocket;
-    private final Map<String, UserInfo> usernames = new HashMap<>();
-    private final ArrayList<User> users = new ArrayList<>();
-
+    /**
+     * Default server's port.
+     */
     public static final int defaultServerPort = 31337;
-
+    /**
+     * Default file's path for users data.
+     */
+    public static String defaultUsersFileName = ".serverUsersData";
+    /**
+     * Server's socket.
+     */
+    private final ServerSocket serverSocket;
+    /**
+     * Container with information about registered users.
+     */
+    private final Map<String, UserInfo> usernames;
+    /**
+     * Container with users data.
+     */
+    private final ArrayList<User> users;
+    /**
+     * Thread that listens to server socket for new connections.
+     */
     private Thread mainThread = null;
 
+    /**
+     * Server that waits for user to connect to server socket.
+     * Creates new Listener for each new socket.
+     * Loads users data from default file if presented.
+     * Saves users data to default file.
+     *
+     * @param ss server socket that server should listen
+     */
+    @SuppressWarnings("unchecked")
     public Server(ServerSocket ss) {
         serverSocket = ss;
+        Path path = Paths.get(defaultUsersFileName);
+        Map<String, UserInfo> usernamesTmp;
+        ArrayList<User> usersTmp;
+        try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(path))) {
+            usernamesTmp = (Map<String, UserInfo>) in.readObject();
+            usersTmp = (ArrayList<User>) in.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            usernamesTmp = new HashMap<>();
+            usersTmp = new ArrayList<>();
+        }
+        usernames = usernamesTmp;
+        users = usersTmp;
     }
 
+    /**
+     * Creates thread that listens server socket.
+     */
     public void run() {
         mainThread = new Thread(() -> {
             try {
@@ -30,12 +78,16 @@ public class Server {
                     thread.start();
                 }
             } catch (IOException e) {
+                saveUsers();
                 System.out.println("Server died: " + e.getMessage());
             }
         });
         mainThread.start();
     }
 
+    /**
+     * Stops thread that listens server socket.
+     */
     public void stop() {
         if (mainThread != null) {
             try {
@@ -45,6 +97,9 @@ public class Server {
         }
     }
 
+    /**
+     * This class is constructed for each new socket to listen it.
+     */
     private class Listener implements Runnable {
         private final Socket socket;
         private int id = -1;
@@ -78,6 +133,12 @@ public class Server {
             }
         }
 
+        /**
+         * Processes received message from user.
+         *
+         * @param msg message from user
+         * @throws IOException if error occured while working with tcp connection
+         */
         private void processReceivedMessage(String msg) throws IOException {
             String[] buffer = msg.split(" ", 2);
             String[] localBuffer;
@@ -96,7 +157,8 @@ public class Server {
                 case "SendRequest":
                     try {
                         UserInfo info = getUserInfo(buffer[1]);
-                        if (info != null && getUser(id).isAbleToSendRequestToUser(info.id)) {
+                        if (info != null && getUser(id).isAbleToSendRequestToUser(info.id)
+                                && !buffer[1].equals(username)) {
                             getUser(info.id).addNewFriendsRequest(id, username);
                             getUser(id).notify("Friends request sent to " + buffer[1] + "\n");
                         }
@@ -108,8 +170,7 @@ public class Server {
                     try {
                         int friendsId = Integer.parseInt(localBuffer[0]);
 
-                        getUser(friendsId).sendMessage(id, localBuffer[1]);
-                        getUser(id).messageReceived(friendsId, localBuffer[1].hashCode());
+                        getUser(friendsId).saveMessageFrom(id, localBuffer[1]);
                     } catch (NumberFormatException ignored) {
                     }
                     break;
@@ -120,18 +181,18 @@ public class Server {
                     } catch (NumberFormatException ignored) {
                     }
                     break;
-                case "MessageReceived":
-                    localBuffer = buffer[1].split(" ", 2);
-                    try {
-                        int friendsId = Integer.parseInt(localBuffer[0]);
-                        getUser(id).deleteReceivedMessage(friendsId, Integer.parseInt(localBuffer[1]));
-
-                    } catch (NumberFormatException ignored) {
-                    }
-                    break;
             }
         }
 
+        /**
+         * Returns true if user logged in or registered successfully, otherwise false.
+         * Sends answer to user.
+         *
+         * @param in  input stream to get users messages
+         * @param out output stream to send messages to user
+         * @return true if user logged in or registered successfully, otherwise false.
+         * @throws IOException if error occurred while working with
+         */
         private boolean acceptUser(BufferedReader in, OutputStreamWriter out) throws IOException {
             String msg = in.readLine();
             if (msg == null)
@@ -162,7 +223,8 @@ public class Server {
                             }
                             return writeResponse(out, "Accepted\n", true);
                         }
-                        return this.writeResponse(out, "Password should be at least 3 characters long\n", false);
+                        return this.writeResponse(out, "Password should be at least 3 characters long\n",
+                                false);
                     }
                     return this.writeResponse(out, "Wrong username format, should: " +
                             "start with letter, " +
@@ -174,6 +236,15 @@ public class Server {
             return writeResponse(out, "Wrong format\n", false);
         }
 
+        /**
+         * Writes authentication response to specified output stream and returns passed return value.
+         *
+         * @param out output stream
+         * @param msg authentication response
+         * @param r   return value
+         * @return passed return value
+         * @throws IOException if error occurred while writing to output stream
+         */
         private boolean writeResponse(OutputStreamWriter out, String msg, boolean r) throws IOException {
             out.write(msg);
             out.flush();
@@ -181,15 +252,43 @@ public class Server {
         }
     }
 
+    /**
+     * Returns UserInfo class with information about user with passed username.
+     * Returns null if no user found.
+     *
+     * @param username username that user's information should return for
+     * @return information about user or null if user not found
+     */
     private UserInfo getUserInfo(String username) {
         synchronized (usernames) {
             return usernames.get(username);
         }
     }
 
+    /**
+     * Returns User with specified id.
+     * Returns null if no user found.
+     *
+     * @param id user's id
+     * @return User with specified id or null
+     */
     private User getUser(int id) {
         synchronized (users) {
             return users.get(id);
+        }
+    }
+
+    private void saveUsers() {
+        Path path = Paths.get(defaultUsersFileName);
+        try (ObjectOutputStream out = new ObjectOutputStream(
+                Files.newOutputStream(path))) {
+            out.writeObject(usernames);
+            out.writeObject(users);
+        } catch (IOException e) {
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException ignored) {
+            }
         }
     }
 }

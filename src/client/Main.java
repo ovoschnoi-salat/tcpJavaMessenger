@@ -1,17 +1,24 @@
 package client;
 
+/**
+ * Class that starts application.
+ */
 public class Main {
+    /**
+     * Starts application with optionally specified default host and port.
+     * Expects launching with 0, 1 or 2 arguments.
+     * First argument should contain default host name.
+     * Second argument should contain default server port.
+     *
+     * @param args server's host and port
+     */
     public static void main(String[] args) {
-        String host = "127.0.0.1";
-        String port = "31337";
         if (args.length > 0 && args[0] != null) {
-            host = args[0];
+            ConnectServerDialog.defaultHost = args[0];
         }
         if (args.length > 1 && args[1] != null) {
-            port = args[1];
+            ConnectServerDialog.defaultPort = args[1];
         }
-        ConnectServerDialog.defaultHost = host;
-        ConnectServerDialog.defaultPort = port;
         new ConnectServerDialog();
     }
 }

@@ -1,3 +1,5 @@
+package server;
+
 public class UserInfo {
     public int id;
     public String password;

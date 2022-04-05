@@ -216,11 +216,7 @@ public class Server {
                     if (buffer[1].matches("^[a-zA-Z]+[\\w]{2,}$")) {
                         if (buffer[2].length() > 2) {
                             username = buffer[1];
-                            synchronized (users) {
-                                id = users.size();
-                                usernames.put(buffer[1], new UserInfo(id, buffer[2]));
-                                users.add(id, new User());
-                            }
+                            id = addUser(username, buffer[2]);
                             return writeResponse(out, "Accepted\n", true);
                         }
                         return this.writeResponse(out, "Password should be at least 3 characters long\n",
@@ -278,12 +274,31 @@ public class Server {
         }
     }
 
+    private int addUser(String username, String password) {
+        int id;
+        synchronized (users) {
+            id = users.size();
+            users.add(id, new User());
+        }
+        synchronized (usernames) {
+            usernames.put(username, new UserInfo(id, password));
+        }
+        return id;
+    }
+
+    /**
+     * Saves users information to default file
+     */
     private void saveUsers() {
         Path path = Paths.get(defaultUsersFileName);
         try (ObjectOutputStream out = new ObjectOutputStream(
                 Files.newOutputStream(path))) {
-            out.writeObject(usernames);
-            out.writeObject(users);
+            synchronized (usernames) {
+                out.writeObject(usernames);
+            }
+            synchronized (users) {
+                out.writeObject(users);
+            }
         } catch (IOException e) {
             try {
                 Files.deleteIfExists(path);

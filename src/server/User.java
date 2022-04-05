@@ -168,11 +168,7 @@ public class User implements Serializable {
         Friend from = friends.get(id);
         if (from != null) {
             from.messages.add(msg);
-            try {
-                send("UnreadMessages " + from.id + " " + from.messages.size() + "\n");
-                sendUnreadMessagesCount(from);
-            } catch (IOException ignored) {
-            }
+            sendUnreadMessagesCount(from);
         }
     }
 
